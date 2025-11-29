@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Snakes & Ladders — Editable Questions</title>
+<style>
+:root{
+  --board-size:720px;
+  --cell-size:calc(var(--board-size)/10);
+  --bg:#f3f6fb;
+  --accent:#2b6cb0;
+  --tile-light:#fffef8;
+  --tile-dark:#f7f3ea;
+  --question:#fff7e6;
+  --question-border:#f0c36b;
+}
+*{box-sizing:border-box}
+body{font-family:Inter,system-ui,Arial;display:flex;gap:20px;padding:18px;background:var(--bg);color:#111;align-items:flex-start;}
+.wrap{display:flex;gap:18px;flex-wrap:wrap;}
+.board-wrap{position:relative;width:var(--board-size);min-width:var(--board-size);}
+.board{
+  width:var(--board-size);height:var(--board-size);
+  display:grid;grid-template-columns:repeat(10,1fr);grid-auto-rows:1fr;
+  border-radius:12px;overflow:hidden;box-shadow:0 10px 28px rgba(20,40,80,0.12);
+  background:linear-gradient(180deg,#fff,#f7fbff);
+  position:relative;
+}
+.cell{
+  border:1px solid rgba(0,0,0,0.06);
+  padding:6px;position:relative;font-size:12px;
+  display:flex;align-items:flex-end;justify-content:flex-end;
+}
+.cell.question-box { background: var(--question) !important; border:2px solid var(--question-border); }
+.num{font-weight:700; opacity:.85; position:absolute; left:6px; top:6px; font-size:11px;}
+.token {width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700; box-shadow:0 4px 8px rgba(10,20,40,0.12); position:absolute; transform:translate(-50%,-50%); transition:all 240ms ease;}
+.controls {width:360px; padding:14px; background:#fff; border-radius:12px; box-shadow:0 8px 20px rgba(12,20,40,0.06);}
+.dice-display{font-size:36px;font-weight:800;padding:6px 12px;border-radius:10px;background:#fff;margin-left:auto;min-width:84px;text-align:center;border:1px solid rgba(0,0,0,0.06)}
+button{background:var(--accent);color:#fff;padding:8px 12px;border-radius:10px;border:0;cursor:pointer;font-weight:700;}
+button.secondary{background:#fff;color:var(--accent);border:1px solid rgba(0,0,0,0.08);}
+.log{margin-top:12px;font-size:13px;min-height:64px; max-height:240px; overflow:auto; border-top:1px dashed rgba(0,0,0,0.04); padding-top:8px;}
+.board-overlay{position:absolute; inset:0; pointer-events:none; z-index:5;}
+#tokenLayer{position:absolute; inset:0; pointer-events:none; z-index:10;}
+svg {width:100%; height:100%; overflow:visible; display:block;}
+.ladder-rail{stroke:#8b5a2b; stroke-width:8; stroke-linecap:round;}
+.ladder-rung{stroke:#cfa97b; stroke-width:4;}
+.snake-path{stroke:#2f855a; stroke-width:10; fill:none; stroke-linecap:round; stroke-dasharray:22 12; animation: dash 1.4s linear infinite;}
+.snake-head{fill:#2f855a; stroke:#08341f; stroke-width:2;}
+@keyframes dash{ to { stroke-dashoffset: -34; } }
+.legend{margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;}
+.legend .pill{padding:6px 8px;border-radius:8px;background:#fff;border:1px solid rgba(0,0,0,0.06);font-size:12px;}
+.modal { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(8,12,20,0.45); z-index:2000; visibility:hidden; opacity:0; transition:opacity .12s ease, visibility .12s;}
+.modal.show { visibility:visible; opacity:1; }
+.panel{background:#fff; padding:18px; border-radius:10px; width:420px; box-shadow:0 12px 36px rgba(0,0,0,0.25);}
+.qtext{font-weight:700; font-size:16px; margin-bottom:8px;}
+.qhint{font-size:13px; color:#334155; margin-bottom:8px;}
+.q-input{width:100%; padding:8px; border-radius:8px; border:1px solid rgba(0,0,0,0.08); margin-top:8px; font-size:14px;}
+.q-row{display:flex; gap:8px; margin-top:12px; justify-content:flex-end;}
+.q-feedback{margin-top:8px; font-weight:700;}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <div class="board-wrap">
+    <div class="board" id="board"></div>
+    <div class="board-overlay" id="overlay">
+      <svg id="svgLayer" preserveAspectRatio="none"></svg>
+    </div>
+    <div id="tokenLayer"></div>
+  </div>
+
+  <div class="controls">
+    <h2>Snakes & Ladders — Editable Questions</h2>
+    <div>
+      <label>Number of players:
+        <select id="playerCount">
+          <option value="2">2</option>
+          <option value="3">3</option>
+          <option value="4">4</option>
+        </select>
+      </label>
+      <button id="startGameBtn">Start Game</button>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:12px;margin:12px 0;">
+      <div id="turnLbl" style="font-weight:700">Turn: —</div>
+      <div class="dice-display" id="diceFace">—</div>
+    </div>
+
+    <div style="display:flex;gap:8px;">
+      <button id="rollBtn">Roll Dice (1–6)</button>
+      <button class="secondary" id="resetBtn">Reset</button>
+    </div>
+
+    <div class="log" id="log"></div>
+  </div>
+</div>
+
+<div class="modal" id="qmodal" role="dialog" aria-modal="true">
+  <div class="panel">
+    <div class="qtext" id="qtext">Question</div>
+    <div class="qhint" id="qhint">Answer correctly → move forward 1. Wrong/skip → move back 1.</div>
+    <input id="qinput" class="q-input" placeholder="Type numeric answer or text..." />
+    <div class="q-row">
+      <button id="qsubmit">Submit</button>
+      <button class="secondary" id="qskip">Skip</button>
+    </div>
+    <div class="q-feedback" id="qfeedback"></div>
+  </div>
+</div>
+
+<script>
+// ===== Editable Questions =====
+const questionSquares = {
+  5: { q: "Area of triangle? (1/2*base*height)", a: "1/2*base*height" },
+  13: { q: "Area of rectangle? (length*width)", a: "length*width" },
+  27: { q: "Area of circle? (pi*r^2)", a: "pi*r^2" },
+  44: { q: "Perimeter of square? (4*side)", a: "4*side" },
+  65: { q: "Volume of cube? (side^3)", a: "side^3" },
+  72: { q: "Square root of 49?", a: "7" },
+  88: { q: "11+9?", a: "20" }
+};
+
+// ===== Board Setup =====
+const boardEl = document.getElementById('board');
+const svg = document.getElementById('svgLayer');
+const tokenLayer = document.getElementById('tokenLayer');
+const diceFace = document.getElementById('diceFace');
+const rollBtn = document.getElementById('rollBtn');
+const resetBtn = document.getElementById('resetBtn');
+const logEl = document.getElementById('log');
+const turnLbl = document.getElementById('turnLbl');
+const playerCountSel = document.getElementById('playerCount');
+const startGameBtn = document.getElementById('startGameBtn');
+
+const qmodal = document.getElementById('qmodal');
+const qtext = document.getElementById('qtext');
+const qinput = document.getElementById('qinput');
+const qsubmit = document.getElementById('qsubmit');
+const qskip = document.getElementById('qskip');
+const qfeedback = document.getElementById('qfeedback');
+
+const COLS = 10, ROWS = 10;
+let players = [];
+let currentPlayer = 0;
+let moving = false;
+
+const ladders = { 3:22, 5:8, 20:38, 28:84, 40:59, 51:67, 63:81, 71:91 };
+const snakes  = { 17:7, 54:34, 62:19, 64:60, 87:24, 93:73, 95:75, 99:78 };
+
+// ===== Build Board =====
+function buildBoard(){
+  boardEl.innerHTML='';
+  let number=100;
+  for(let row=0;row<ROWS;row++){
+    const rowCells=[];
+    for(let col=0;col<COLS;col++){
+      const cell=document.createElement('div');
+      cell.className='cell';
+      cell.dataset.num=number;
+      if(questionSquares[number]) cell.classList.add('question-box');
+      const n=document.createElement('div'); n.className='num'; n.textContent=number;
+      cell.appendChild(n);
+      const tileColor = (number % 2 === 0)? 'var(--tile-light)':'var(--tile-dark)';
+      cell.style.background=tileColor;
+      rowCells.push(cell);
+      number--;
+    }
+    if(row%2===1) rowCells.reverse();
+    rowCells.forEach(c=>boardEl.appendChild(c));
+  }
+}
+
+// ===== Cell Center =====
+function getCellCenterPx(num){
+  if(num<1) return {x:20, y:boardEl.offsetHeight-20}; // before start
+  const cell = boardEl.querySelector(`.cell[data-num='${num}']`);
+  if(!cell) return null;
+  const boardRect = boardEl.getBoundingClientRect();
+  const rect = cell.getBoundingClientRect();
+  return {x: rect.left - boardRect.left + rect.width/2, y: rect.top - boardRect.top + rect.height/2};
+}
+
+// ===== Draw Ladders & Snakes =====
+function drawJumps(){
+  const rect = boardEl.getBoundingClientRect();
+  svg.setAttribute('width', rect.width);
+  svg.setAttribute('height', rect.height);
+  while(svg.firstChild) svg.removeChild(svg.firstChild);
+
+  // Ladders
+  for(const fromStr of Object.keys(ladders)){
+    const from=Number(fromStr), to=ladders[from];
+    const c1=getCellCenterPx(from), c2=getCellCenterPx(to);
+    if(!c1||!c2) continue;
+    const offsetTop = 8, offsetBottom=12;
+    const x1Top = c2.x-offsetTop, y1Top=c2.y;
+    const x2Top = c2.x+offsetTop, y2Top=c2.y;
+    const x1Bottom = c1.x-offsetBottom, y1Bottom=c1.y;
+    const x2Bottom = c1.x+offsetBottom, y2Bottom=c1.y;
+    svg.appendChild(makeLineSVG(x1Bottom,y1Bottom,x1Top,y1Top,'ladder-rail'));
+    svg.appendChild(makeLineSVG(x2Bottom,y2Bottom,x2Top,y2Top,'ladder-rail'));
+    const rungCount = Math.max(3,Math.floor(Math.hypot(c2.x-c1.x,c2.y-c1.y)/60));
+    for(let i=1;i<rungCount;i++){
+      const t=i/rungCount;
+      const rx1 = lerp(x1Bottom,x1Top,t);
+      const ry1 = lerp(y1Bottom,y1Top,t);
+      const rx2 = lerp(x2Bottom,x2Top,t);
+      const ry2 = lerp(y2Bottom,y2Top,t);
+      svg.appendChild(makeLineSVG(rx1,ry1,rx2,ry2,'ladder-rung'));
+    }
+  }
+
+  // Snakes
+  for(const fromStr of Object.keys(snakes)){
+    const from=Number(fromStr), to=snakes[from];
+    const start=getCellCenterPx(from), end=getCellCenterPx(to);
+    if(!start||!end) continue;
+    const dx=end.x-start.x, dy=end.y-start.y,len=Math.hypot(dx,dy);
+    const ox=-dy/len, oy=dx/len;
+    const curvature=Math.min(160,len*0.5);
+    const c1x=lerp(start.x,end.x,0.33)+ox*curvature;
+    const c1y=lerp(start.y,end.y,0.33)+oy*curvature;
+    const c2x=lerp(start.x,end.x,0.66)-ox*curvature*0.7;
+    const c2y=lerp(start.y,end.y,0.66)-oy*curvature*0.7;
+    const midX=(start.x+end.x)/2, midY=(start.y+end.y)/2;
+    const d=`M ${start.x} ${start.y} Q ${c1x} ${c1y} ${midX} ${midY} T ${end.x} ${end.y}`;
+    const path=document.createElementNS('http://www.w3.org/2000/svg','path');
+    path.setAttribute('d',d); path.setAttribute('class','snake-path'); path.setAttribute('fill','none');
+    svg.appendChild(path);
+    const head=document.createElementNS('http://www.w3.org/2000/svg','circle');
+    head.setAttribute('cx',start.x); head.setAttribute('cy',start.y); head.setAttribute('r',Math.max(8,Math.min(20,len*0.06))); head.setAttribute('class','snake-head');
+    svg.appendChild(head);
+  }
+}
+
+function makeLineSVG(x1,y1,x2,y2,cls){
+  const l=document.createElementNS('http://www.w3.org/2000/svg','line');
+  l.setAttribute('x1',x1); l.setAttribute('y1',y1); l.setAttribute('x2',x2); l.setAttribute('y2',y2); l.setAttribute('class',cls); return l;
+}
+function lerp(a,b,t){return a+(b-a)*t;}
+
+// ===== Tokens =====
+function createTokens(){
+  tokenLayer.innerHTML='';
+  players.forEach((p,idx)=>{
+    const t=document.createElement('div');
+    t.className='token'; t.textContent=idx+1; t.style.background=p.color;
+    tokenLayer.appendChild(t); p.el=t;
+    updateTokenPosition(idx);
+  });
+}
+
+function updateTokenPosition(playerIdx){
+  const p=players[playerIdx];
+  const pos=getCellCenterPx(p.pos);
+  if(!pos) return;
+  p.el.style.left=pos.x+'px';
+  p.el.style.top=pos.y+'px';
+}
+
+function renderAllTokens(){ players.forEach((_,i)=>updateTokenPosition(i)); }
+
+// ===== Dice & Move =====
+function wait(ms){return new Promise(r=>setTimeout(r,ms));}
+function rollDice(){ if(moving) return 0; const r=Math.floor(Math.random()*6)+1; diceFace.textContent=r; return r; }
+
+async function movePlayerSteps(steps){
+  if(moving) return; moving=true;
+  const p=players[currentPlayer];
+  let target=p.pos+steps;
+  if(target>100) target=100-(target-100);
+  const dir=target>p.pos?1:-1;
+  while(p.pos!==target){ p.pos+=dir; updateTokenPosition(currentPlayer); await wait(180); }
+  await wait(160);
+
+  // Ladder/Snake
+  if(ladders[p.pos]){ logMsg(`${p.name} climbs ladder!`); p.pos = ladders[p.pos]; updateTokenPosition(currentPlayer); await wait(200); }
+  else if(snakes[p.pos]){ logMsg(`${p.name} slides down snake!`); p.pos = snakes[p.pos]; updateTokenPosition(currentPlayer); await wait(200); }
+  
+  // Question square
+  if(questionSquares[p.pos]){ await askQuestion(p.pos); }
+
+  if(p.pos===100){ alert(`${p.name} wins!`); moving=false; return; }
+
+  currentPlayer=(currentPlayer+1)%players.length;
+  turnLbl.textContent=`Turn: ${players[currentPlayer].name}`;
+  moving=false;
+}
+
+// ===== Questions =====
+function askQuestion(square){
+  return new Promise((resolve)=>{
+    const qObj=questionSquares[square];
+    qtext.textContent=qObj.q; qfeedback.textContent=''; qinput.value='';
+    qmodal.classList.add('show'); qinput.focus();
+    function finish(correct){
+      qmodal.classList.remove('show');
+      if(correct){ logMsg(`${players[currentPlayer].name} answered correctly! Move forward 1.`); players[currentPlayer].pos++; updateTokenPosition(currentPlayer);}
+      else { logMsg(`${players[currentPlayer].name} answered wrongly. Move back 1.`); players[currentPlayer].pos=Math.max(0,players[currentPlayer].pos-1); updateTokenPosition(currentPlayer);}
+      resolve();
+    }
+    qsubmit.onclick=()=>{ finish(qinput.value.trim().toLowerCase() === qObj.a.trim().toLowerCase()); }
+    qskip.onclick=()=>{ finish(false); }
+  });
+}
+
+// ===== Log =====
+function logMsg(txt){ const d=document.createElement('div'); d.textContent=txt; logEl.appendChild(d); logEl.scrollTop=logEl.scrollHeight; }
+
+// ===== Event Listeners =====
+rollBtn.onclick=()=>{ const r=rollDice(); if(r) movePlayerSteps(r); };
+resetBtn.onclick=()=>{ initGame(players.length); }
+window.addEventListener('resize',drawJumps);
+startGameBtn.onclick=()=>{ initGame(Number(playerCountSel.value)); }
+
+// ===== Init Game =====
+function initGame(playerCount){
+  players=[];
+  for(let i=0;i<playerCount;i++){
+    players.push({name:`Player ${i+1}`, color:`hsl(${i*80},60%,50%)`, pos:0});
+  }
+  currentPlayer=0; turnLbl.textContent=`Turn: ${players[0].name}`;
+  diceFace.textContent='—';
+  logEl.innerHTML='';
+  buildBoard();
+  drawJumps();
+  createTokens();
+}
+</script>
+</body>
+</html>
+
+
