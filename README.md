@@ -1,4 +1,4 @@
-# Snakes & Ladders — Editable Questions
+# Snakes & Ladders 
 
 ## How to Use
 
